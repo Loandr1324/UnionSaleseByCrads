@@ -29,9 +29,13 @@ def read_data() -> pd.DataFrame:
     for item in smbclient.listdir(path):
         if item.endswith('.xlsx'):
             # Считываем файл с сервера
-            df = pd.read_excel(
-                smbclient.open_file(path + "/" + item, 'rb'), header=6, engine='openpyxl'
-            )
+            with smbclient.open_file(path + "/" + item, mode='rb') as s:
+                df = pd.read_excel(
+                    s, header=6, engine='openpyxl'
+                )
+            # df = pd.read_excel(
+            #     smbclient.open_file(path + "/" + item, 'rb'), header=6, engine='openpyxl'
+            # )
             df.dropna(axis=1, how='all', inplace=True)  # Удаляем пустые колонки
             del_col = [df.columns[2], df.columns[3]]  # Выбираем колонки для удаления
             df.drop(del_col, axis=1, inplace=True)  # Удаляем колонки с количеством продаж и карт
