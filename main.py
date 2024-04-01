@@ -30,7 +30,7 @@ def read_data() -> pd.DataFrame:
         if item.endswith('.xlsx'):
             # Считываем файл с сервера
             df = pd.read_excel(
-                smbclient.open_file(path + "/" + item, 'rb'), sheet_name='TDSheet', header=6, engine='openpyxl'
+                smbclient.open_file(path + "/" + item, 'rb'), header=6, engine='openpyxl'
             )
             df.dropna(axis=1, how='all', inplace=True)  # Удаляем пустые колонки
             del_col = [df.columns[2], df.columns[3]]  # Выбираем колонки для удаления
