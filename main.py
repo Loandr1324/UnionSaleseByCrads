@@ -16,7 +16,7 @@ logger.add(config.FILE_NAME_CONFIG,
 
 # Создаём подключение для работы с файлами на сервере
 smbclient.ClientConfig(username=config.LOCAL_PATH['USER'], password=config.LOCAL_PATH['PSW'])
-path = config.LOCAL_PATH['PATH']
+path = config.LOCAL_PATH['PATH_REPORT_SERVER1']
 
 
 def read_data() -> pd.DataFrame:
@@ -26,21 +26,33 @@ def read_data() -> pd.DataFrame:
     df_sales_card = pd.DataFrame()
     names = ['Номер карты', 'Владелец карты', 'Выручка']
 
-    for item in smbclient.listdir(path):
-        if item.endswith('.xlsx'):
-            # Считываем файл с сервера
-            with smbclient.open_file(path + "/" + item, mode='rb') as s:
-                df = pd.read_excel(
-                    s, header=6, engine='openpyxl'
-                )
-            # df = pd.read_excel(
-            #     smbclient.open_file(path + "/" + item, 'rb'), header=6, engine='openpyxl'
-            # )
-            df.dropna(axis=1, how='all', inplace=True)  # Удаляем пустые колонки
-            del_col = [df.columns[2], df.columns[3]]  # Выбираем колонки для удаления
-            df.drop(del_col, axis=1, inplace=True)  # Удаляем колонки с количеством продаж и карт
-            df.columns = names  # Переименовываем колонки
-            df_sales_card = pd.concat([df_sales_card, df], ignore_index=True)  # Добавляем данные в общий DataFrame
+    paths = [
+        # config.LOCAL_PATH['PATH_REPORT_SERVER1'] + r"\СТО по картам",
+        # config.LOCAL_PATH['PATH_REPORT_SERVER2'] + r"\СТО по картам",
+        config.LOCAL_PATH['PATH_REPORT_SERVER3'] + r"\СТО по картам",
+        config.LOCAL_PATH['PATH_REPORT_SERVER4'] + r"\СТО по картам",
+        config.LOCAL_PATH['PATH_REPORT_SERVER5'] + r"\СТО по картам",
+        config.LOCAL_PATH['PATH_REPORT_SERVER6'] + r"\СТО по картам",
+        config.LOCAL_PATH['PATH_REPORT_SERVER7'] + r"\СТО по картам",
+        config.LOCAL_PATH['PATH_REPORT_SERVER8'] + r"\СТО по картам",
+    ]
+
+    for path1 in paths:
+        for item in smbclient.listdir(path1):
+            if item.endswith('.xlsx'):
+                # Считываем файл с сервера
+                with smbclient.open_file(path1 + "/" + item, mode='rb') as s:
+                    df = pd.read_excel(
+                        s, header=6, engine='openpyxl'
+                    )
+                # df = pd.read_excel(
+                #     smbclient.open_file(path + "/" + item, 'rb'), header=6, engine='openpyxl'
+                # )
+                df.dropna(axis=1, how='all', inplace=True)  # Удаляем пустые колонки
+                del_col = [df.columns[2], df.columns[3]]  # Выбираем колонки для удаления
+                df.drop(del_col, axis=1, inplace=True)  # Удаляем колонки с количеством продаж и карт
+                df.columns = names  # Переименовываем колонки
+                df_sales_card = pd.concat([df_sales_card, df], ignore_index=True)  # Добавляем данные в общий DataFrame
 
     # Преобразуем колонку "Номер карты" в строку и дополняем недостающими нулями до 5 символов
     if len(df_sales_card) > 0:
@@ -231,8 +243,7 @@ def send_mail_error() -> None:
     message = {
         'Subject': f"Ошибка при формировании ежемесячного отчета по Картам СТО",
         'email_content': (f"Нет отчета продаж по картам СТО за предыдущий месяц.<br>"
-                                    f"Разместите отчет в папке:<br>"
-                                    f"{config.LOCAL_PATH['PATH']}"),
+                          f"Разместите отчет в папке на каждом сервере.<br>"),
         'To': config.TO_EMAILS['TO_ERROR'],
         'File_name': '',
         'Temp_file': ''
@@ -248,22 +259,57 @@ def remove_files():
     Копируем отчеты с исходной папки и файлы с данными в папку за месяц и удаляем все файлы из исходной папки с отчётами
     :return: None
     """
-    path1 = config.LOCAL_PATH['PATH']
+    paths = [
+        config.LOCAL_PATH['PATH_REPORT_SERVER3'],
+        config.LOCAL_PATH['PATH_REPORT_SERVER4'],
+        config.LOCAL_PATH['PATH_REPORT_SERVER5'],
+        config.LOCAL_PATH['PATH_REPORT_SERVER6'],
+        config.LOCAL_PATH['PATH_REPORT_SERVER7'],
+        config.LOCAL_PATH['PATH_REPORT_SERVER8'],
+    ]
+
     year, month = date_xlsx()[1:]
-    path2 = path1 + f"/Отчёты за {month}.{year}"
+    path2 = path + rf"\СТО по картам\Отчёты за {month}.{year}"
 
-    # Создаём резервную папку за месяц отчета
-    smbclient.mkdir(path2)
+    if not smbclient.path.exists(path2):
+        smbclient.mkdir(path2)
 
-    # Переносим файлы из Исходной директории в резервную
-    for item in smbclient.listdir(path1):
-        if item.endswith('.xlsx'):
-            smbclient.copyfile(path1 + "/" + item, path2 + "/" + item)
-            smbclient.remove(path1 + "/" + item)
-    # Переносим файлы с данными из директории скрипта в резервную папку
+    for path_item in paths:
+        path1 = path_item + r"\СТО по картам"
+
+        for item in smbclient.listdir(path1):
+            item_path = path1 + "\\" + item
+            dest_path = path2 + "\\" + item
+
+            if smbclient.path.isfile(item_path):
+                try:
+                    # Скачиваем файл в память (без временного файла)
+                    with smbclient.open_file(item_path, mode='rb') as src_file:
+                        file_data = src_file.read()
+
+                    # Загружаем на целевой сервер
+                    with smbclient.open_file(dest_path, mode='wb') as dst_file:
+                        dst_file.write(file_data)
+
+                    # Удаляем исходный файл (если нужно)
+                    smbclient.remove(item_path)
+
+                except Exception as e:
+                    print(f"Ошибка при обработке {item_path}: {e}")
+            else:
+                print(f"Пропускаем директорию: {item_path}")
+
+    # Копируем локальные .xlsx файлы
     for item in os.listdir():
         if item.endswith('.xlsx'):
-            smb_shutil.copyfile(item, path2 + "/" + item)
+            dest = path2 + "\\" + item
+            try:
+                with open(item, 'rb') as src_file:
+                    with smbclient.open_file(dest, mode='wb') as dst_file:
+                        dst_file.write(src_file.read())
+            except Exception as e:
+                print(f"Ошибка при копировании {item}: {e}")
+
     return
 
 
